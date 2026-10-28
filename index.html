@@ -2,7 +2,7 @@
 <html lang="ar" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <title>لوحة إدخال بيانات الفرصة التطوعية</title>
+    <title>إدارة وتقرير الفرصة التطوعية</title>
     <style>
         body {
             font-family: 'Tahoma', Arial, sans-serif;
@@ -11,7 +11,7 @@
             padding: 20px;
         }
         .container {
-            max-width: 900px;
+            max-width: 950px;
             margin: 0 auto;
             background: #ffffff;
             padding: 25px;
@@ -22,6 +22,14 @@
             text-align: center;
             color: #2c3e50;
         }
+        .actions-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
         .form-group {
             display: flex;
             gap: 10px;
@@ -30,9 +38,11 @@
             padding: 15px;
             border: 1px solid #e0e0e0;
             border-radius: 8px;
+            flex-wrap: wrap;
         }
         input {
             flex: 1;
+            min-width: 200px;
             padding: 10px;
             border: 1px solid #ccc;
             border-radius: 5px;
@@ -40,15 +50,27 @@
         }
         button {
             padding: 10px 20px;
-            background-color: #27ae60;
-            color: white;
             border: none;
             border-radius: 5px;
             cursor: pointer;
             font-weight: bold;
+            color: white;
         }
-        button:hover {
+        #saveBtn {
+            background-color: #27ae60;
+        }
+        #saveBtn:hover {
             background-color: #219653;
+        }
+        #cancelEditBtn {
+            background-color: #7f8c8d;
+            display: none;
+        }
+        .btn-report {
+            background-color: #2980b9;
+        }
+        .btn-report:hover {
+            background-color: #2471a3;
         }
         table {
             width: 100%;
@@ -71,6 +93,78 @@
             color: #27ae60;
             font-weight: bold;
         }
+        .btn-edit {
+            background-color: #f39c12;
+            padding: 6px 12px;
+            font-size: 13px;
+        }
+        .btn-delete {
+            background-color: #c0392b;
+            padding: 6px 12px;
+            font-size: 13px;
+        }
+
+        /* نافذة التقرير المفصل المنبثقة */
+        #reportModal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+        .report-content {
+            background: #fff;
+            padding: 30px;
+            border-radius: 10px;
+            width: 80%;
+            max-width: 800px;
+            max-height: 90vh;
+            overflow-y: auto;
+            position: relative;
+        }
+        .report-header {
+            text-align: center;
+            border-bottom: 2px solid #2c3e50;
+            padding-bottom: 15px;
+            margin-bottom: 20px;
+        }
+        .report-footer {
+            margin-top: 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .close-modal {
+            background-color: #e74c3c;
+            padding: 8px 15px;
+        }
+        .print-btn {
+            background-color: #27ae60;
+            padding: 8px 15px;
+        }
+        @media print {
+            body * {
+                visibility: hidden;
+            }
+            .report-content, .report-content * {
+                visibility: visible;
+            }
+            .report-content {
+                position: absolute;
+                top: 0;
+                right: 0;
+                width: 100%;
+                box-shadow: none;
+            }
+            .no-print {
+                display: none !important;
+            }
+        }
     </style>
 </head>
 <body>
@@ -78,14 +172,21 @@
 <div class="container">
     <h2>إدارة بيانات الفرصة التطوعية</h2>
     
-    <!-- نموذج الإدخال -->
+    <!-- شريط الأزرار العلوي -->
+    <div class="actions-bar">
+        <h3>سجل الطلاب المقبولين</h3>
+        <button class="btn-report" id="openReportBtn">📊 تقرير مفصل</button>
+    </div>
+
+    <!-- نموذج الإدخال / التعديل -->
     <div class="form-group">
+        <input type="hidden" id="editDocId">
         <input type="text" id="studentName" placeholder="اسم الطالب الكامل">
         <input type="text" id="studentClass" placeholder="الفصل (مثال: 3/1)">
         <button id="saveBtn">حفظ وإضافة للسحابة</button>
+        <button id="cancelEditBtn">إلغاء التعديل</button>
     </div>
 
-    <h3>بيان الطلاب المقبولين</h3>
     <table>
         <thead>
             <tr>
@@ -94,6 +195,7 @@
                 <th>الفصل</th>
                 <th>حالة القبول</th>
                 <th>حالة إتمام العمل</th>
+                <th>التحكم</th>
             </tr>
         </thead>
         <tbody id="tableBody">
@@ -102,10 +204,44 @@
     </table>
 </div>
 
+<!-- نافذة التقرير المفصل -->
+<div id="reportModal">
+    <div class="report-content">
+        <div class="report-header">
+            <h2>ثانوية الأمير عبدالمجيد بالرياض</h2>
+            <h3>تقرير إنجاز الفرص التطوعية (للطلاب المقبولين والمتممين للعمل)</h3>
+        </div>
+        <div id="reportSummary" style="margin-bottom: 15px; font-weight: bold; color: #2c3e50;"></div>
+        <table id="reportTable">
+            <thead>
+                <tr>
+                    <th>م</th>
+                    <th>اسم الطالب</th>
+                    <th>الفصل</th>
+                    <th>حالة القبول</th>
+                    <th>حالة إتمام العمل</th>
+                </tr>
+            </thead>
+            <tbody id="reportTableBody">
+                <!-- تعبئة تلقائية للتقرير -->
+            </tbody>
+        </table>
+        <div class="report-footer">
+            <div>
+                <p>إعداد المعلم: أ/ عبدالعزيز الفيفي</p>
+            </div>
+            <div class="no-print">
+                <button class="print-btn" onclick="window.print()">طباعة التقرير</button>
+                <button class="close-modal" id="closeReportBtn">إغلاق</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- كود السحابة والربط التفاعلي -->
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-    import { getFirestore, collection, addDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+    import { getFirestore, collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
     const firebaseConfig = {
         apiKey: "AIzaSyDYUF6MuzyQQIqnd_IqFMGrx",
@@ -122,13 +258,24 @@
 
     const nameInput = document.getElementById('studentName');
     const classInput = document.getElementById('studentClass');
+    const editDocIdInput = document.getElementById('editDocId');
     const saveBtn = document.getElementById('saveBtn');
+    const cancelEditBtn = document.getElementById('cancelEditBtn');
     const tableBody = document.getElementById('tableBody');
+    
+    const reportModal = document.getElementById('reportModal');
+    const openReportBtn = document.getElementById('openReportBtn');
+    const closeReportBtn = document.getElementById('closeReportBtn');
+    const reportTableBody = document.getElementById('reportTableBody');
+    const reportSummary = document.getElementById('reportSummary');
 
-    // حفظ البيانات في السحابة عند الضغط على الزر
+    let cachedStudents = [];
+
+    // حفظ أو تحديث البيانات في السحابة
     saveBtn.addEventListener('click', async () => {
         const name = nameInput.value.trim();
         const studentClass = classInput.value.trim();
+        const docId = editDocIdInput.value;
 
         if (!name || !studentClass) {
             alert('الرجاء إدخال اسم الطالب والفصل');
@@ -137,34 +284,96 @@
 
         try {
             saveBtn.disabled = true;
-            saveBtn.textContent = 'جاري الحفظ...';
-
-            await addDoc(collection(db, "volunteer_results"), {
-                studentName: name,
-                studentClass: studentClass,
-                admissionStatus: "تم القبول في الفرصة",
-                workStatus: "أتم العمل بنجاح",
-                createdAt: new Date().toISOString()
-            });
-
-            nameInput.value = '';
-            classInput.value = '';
+            if (docId) {
+                await updateDoc(doc(db, "volunteer_results", docId), {
+                    studentName: name,
+                    studentClass: studentClass,
+                    updatedAt: new Date().toISOString()
+                });
+                resetForm();
+            } else {
+                await addDoc(collection(db, "volunteer_results"), {
+                    studentName: name,
+                    studentClass: studentClass,
+                    admissionStatus: "تم القبول في الفرصة",
+                    workStatus: "أتم العمل بنجاح",
+                    createdAt: new Date().toISOString()
+                });
+                nameInput.value = '';
+                classInput.value = '';
+            }
         } catch (error) {
             console.error("خطأ أثناء الحفظ:", error);
-            alert('حدث خطأ أثناء الحفظ، تأكد من الاتصال');
+            alert('حدث خطأ أثناء الاتصال بالسحابة');
         } finally {
             saveBtn.disabled = false;
-            saveBtn.textContent = 'حفظ وإضافة للسحابة';
         }
+    });
+
+    cancelEditBtn.addEventListener('click', resetForm);
+
+    function resetForm() {
+        nameInput.value = '';
+        classInput.value = '';
+        editDocIdInput.value = '';
+        saveBtn.textContent = 'حفظ وإضافة للسحابة';
+        cancelEditBtn.style.display = 'none';
+    }
+
+    window.editRecord = function(id, name, studentClass) {
+        editDocIdInput.value = id;
+        nameInput.value = name;
+        classInput.value = studentClass;
+        saveBtn.textContent = 'تحديث البيانات';
+        cancelEditBtn.style.display = 'inline-block';
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    window.deleteRecord = async function(id) {
+        if (confirm('هل أنت متأكد من حذف هذا السجل نهائياً؟')) {
+            try {
+                await deleteDoc(doc(db, "volunteer_results", id));
+            } catch (error) {
+                console.error("خطأ أثناء الحذف:", error);
+                alert('حدث خطأ أثناء الحذف');
+            }
+        }
+    }
+
+    // فتح وإغلاق نافذة التقرير
+    openReportBtn.addEventListener('click', () => {
+        reportTableBody.innerHTML = "";
+        reportSummary.textContent = `إجمالي عدد الطلاب المقبولين والمتممين للعمل: ${cachedStudents.length} طالب`;
+        
+        cachedStudents.forEach((data, idx) => {
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                <td>${idx + 1}</td>
+                <td>${data.studentName}</td>
+                <td>${data.studentClass}</td>
+                <td>${data.admissionStatus}</td>
+                <td class="status-accepted">${data.workStatus}</td>
+            `;
+            reportTableBody.appendChild(row);
+        });
+        reportModal.style.display = 'flex';
+    });
+
+    closeReportBtn.addEventListener('click', () => {
+        reportModal.style.display = 'none';
     });
 
     // مزامنة الجدول وعرض البيانات مباشرة من السحابة
     onSnapshot(collection(db, "volunteer_results"), (snapshot) => {
         tableBody.innerHTML = "";
+        cachedStudents = [];
         let index = 1;
         
-        snapshot.forEach((doc) => {
-            const data = doc.data();
+        snapshot.forEach((documentSnapshot) => {
+            const data = documentSnapshot.data();
+            const id = documentSnapshot.id;
+            cachedStudents.push({ id, ...data });
+
             const row = document.createElement('tr');
             row.innerHTML = `
                 <td>${index++}</td>
@@ -172,6 +381,10 @@
                 <td>${data.studentClass || ''}</td>
                 <td>${data.admissionStatus || 'تم القبول في الفرصة'}</td>
                 <td class="status-accepted">${data.workStatus || 'أتم العمل بنجاح'}</td>
+                <td>
+                    <button class="btn-edit" onclick="editRecord('${id}', '${data.studentName || ''}', '${data.studentClass || ''}')">تعديل</button>
+                    <button class="btn-delete" onclick="deleteRecord('${id}')">حذف</button>
+                </td>
             `;
             tableBody.appendChild(row);
         });
