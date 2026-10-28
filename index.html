@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <title>بيان المقبولين في الفرصة التطوعية - السحابة</title>
+    <style>
+        body {
+            font-family: 'Tahoma', Arial, sans-serif;
+            background-color: #f4f6f9;
+            margin: 0;
+            padding: 20px;
+        }
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            background: #ffffff;
+            padding: 25px;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        h2 {
+            text-align: center;
+            color: #2c3e50;
+            margin-bottom: 25px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+        }
+        th, td {
+            border: 1px solid #e0e0e0;
+            padding: 12px;
+            text-align: center;
+        }
+        th {
+            background-color: #2c3e50;
+            color: white;
+            font-size: 15px;
+        }
+        tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+        .status-accepted {
+            color: #27ae60;
+            font-weight: bold;
+        }
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: #7f8c8d;
+            font-size: 16px;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>بيان المقبولين في الفرصة التطوعية وإتمام العمل</h2>
+    <div id="loading" class="loading">جاري مزامنة البيانات من السحابة...</div>
+    <table id="resultsTable" style="display: none;">
+        <thead>
+            <tr>
+                <th>م</th>
+                <th>اسم الطالب</th>
+                <th>الفصل</th>
+                <th>حالة القبول</th>
+                <th>حالة إتمام العمل</th>
+            </tr>
+        </thead>
+        <tbody id="tableBody">
+            <!-- سيتم تعبئة البيانات تلقائياً من السحابة -->
+        </tbody>
+    </table>
+</div>
+
+<!-- ربط السحابة وعرض البيانات -->
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+    import { getFirestore, collection, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+    // إعدادات السحابة لمشروعك
+    const firebaseConfig = {
+        apiKey: "AIzaSyDYUF6MuzyQQIqnd_IqFMGrx",
+        authDomain: "your-apps-3511e.firebaseapp.com",
+        projectId: "your-apps-3511e",
+        storageBucket: "your-apps-3511e.firebasestorage.app",
+        messagingSenderId: "309311377713",
+        appId: "1:309311377713:web:2fb740e8e687af40f2010",
+        measurementId: "G-MLCQ329BSV"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+
+    const loadingEl = document.getElementById('loading');
+    const tableEl = document.getElementById('resultsTable');
+    const tableBody = document.getElementById('tableBody');
+
+    // الاستماع الفوري للتحديثات من مجموعة التطوع أو النتائج في قاعدة البيانات
+    onSnapshot(collection(db, "volunteer_results"), (snapshot) => {
+        tableBody.innerHTML = "";
+        let index = 1;
+        
+        if (snapshot.empty) {
+            // بيانات تجريبية في حال عدم وجود سجلات مسجلة بعد في مجموعة volunteer_results
+            const demoData = [
+                { studentName: "أحمد محمد العتيبي", studentClass: "3/1", admissionStatus: "تم القبول في الفرصة", workStatus: "أتم العمل بنجاح" },
+                { studentName: "سلطان خالد القحطاني", studentClass: "3/1", admissionStatus: "تم القبول في الفرصة", workStatus: "أتم العمل بنجاح" },
+                { studentName: "فيصل عبدالله الشهري", studentClass: "3/2", admissionStatus: "تم القبول في الفرصة", workStatus: "أتم العمل بنجاح" },
+                { studentName: "عمر خالد الغامدي", studentClass: "3/2", admissionStatus: "تم القبول في الفرصة", workStatus: "أتم العمل بنجاح" }
+            ];
+            
+            demoData.forEach(item => {
+                appendRow(index++, item.studentName, item.studentClass, item.admissionStatus, item.workStatus);
+            });
+        } else {
+            snapshot.forEach((doc) => {
+                const data = doc.data();
+                appendRow(index++, data.studentName || 'غير متوفر', data.studentClass || '-', data.admissionStatus || 'تم القبول في الفرصة', data.workStatus || 'أتم العمل بنجاح');
+            });
+        }
+
+        loadingEl.style.display = 'none';
+        tableEl.style.display = 'table';
+    }, (error) => {
+        console.error("خطأ في جلب البيانات:", error);
+        loadingEl.textContent = "حدث خطأ أثناء الاتصال بالسحابة.";
+    });
+
+    function appendRow(index, name, className, admission, work) {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+            <td>${index}</td>
+            <td>${name}</td>
+            <td>${className}</td>
+            <td>${admission}</td>
+            <td class="status-accepted">${work}</td>
+        `;
+        tableBody.appendChild(row);
+    }
+</script>
+
+</body>
+</html>
