@@ -39,10 +39,11 @@
             border: 1px solid #e0e0e0;
             border-radius: 8px;
             flex-wrap: wrap;
+            align-items: center;
         }
-        input {
+        input, select {
             flex: 1;
-            min-width: 200px;
+            min-width: 180px;
             padding: 10px;
             border: 1px solid #ccc;
             border-radius: 5px;
@@ -91,6 +92,14 @@
         }
         .status-accepted {
             color: #27ae60;
+            font-weight: bold;
+        }
+        .status-pending {
+            color: #e67e22;
+            font-weight: bold;
+        }
+        .status-rejected {
+            color: #c0392b;
             font-weight: bold;
         }
         .btn-edit {
@@ -174,15 +183,20 @@
     
     <!-- شريط الأزرار العلوي -->
     <div class="actions-bar">
-        <h3>سجل الطلاب المقبولين</h3>
+        <h3>سجل الطلاب</h3>
         <button class="btn-report" id="openReportBtn">📊 تقرير مفصل</button>
     </div>
 
-    <!-- نموذج الإدخال / التعديل -->
+    <!-- نموذج الإدخال / التعديل مع خيار حالة القبول -->
     <div class="form-group">
         <input type="hidden" id="editDocId">
         <input type="text" id="studentName" placeholder="اسم الطالب الكامل">
         <input type="text" id="studentClass" placeholder="الفصل (مثال: 3/1)">
+        <select id="admissionStatusSelect">
+            <option value="تم القبول في الفرصة">تم القبول في الفرصة</option>
+            <option value="بانتظار الاعتماد">بانتظار الاعتماد</option>
+            <option value="لم يتم القبول">لم يتم القبول</option>
+        </select>
         <button id="saveBtn">حفظ وإضافة للسحابة</button>
         <button id="cancelEditBtn">إلغاء التعديل</button>
     </div>
@@ -209,7 +223,7 @@
     <div class="report-content">
         <div class="report-header">
             <h2>ثانوية الأمير عبدالمجيد بالرياض</h2>
-            <h3>تقرير إنجاز الفرص التطوعية (للطلاب المقبولين والمتممين للعمل)</h3>
+            <h3>تقرير إنجاز الفرص التطوعية للطلاب</h3>
         </div>
         <div id="reportSummary" style="margin-bottom: 15px; font-weight: bold; color: #2c3e50;"></div>
         <table id="reportTable">
@@ -258,6 +272,7 @@
 
     const nameInput = document.getElementById('studentName');
     const classInput = document.getElementById('studentClass');
+    const admissionStatusSelect = document.getElementById('admissionStatusSelect');
     const editDocIdInput = document.getElementById('editDocId');
     const saveBtn = document.getElementById('saveBtn');
     const cancelEditBtn = document.getElementById('cancelEditBtn');
@@ -275,6 +290,7 @@
     saveBtn.addEventListener('click', async () => {
         const name = nameInput.value.trim();
         const studentClass = classInput.value.trim();
+        const admissionStatus = admissionStatusSelect.value;
         const docId = editDocIdInput.value;
 
         if (!name || !studentClass) {
@@ -288,6 +304,7 @@
                 await updateDoc(doc(db, "volunteer_results", docId), {
                     studentName: name,
                     studentClass: studentClass,
+                    admissionStatus: admissionStatus,
                     updatedAt: new Date().toISOString()
                 });
                 resetForm();
@@ -295,12 +312,13 @@
                 await addDoc(collection(db, "volunteer_results"), {
                     studentName: name,
                     studentClass: studentClass,
-                    admissionStatus: "تم القبول في الفرصة",
+                    admissionStatus: admissionStatus,
                     workStatus: "أتم العمل بنجاح",
                     createdAt: new Date().toISOString()
                 });
                 nameInput.value = '';
                 classInput.value = '';
+                admissionStatusSelect.value = "تم القبول في الفرصة";
             }
         } catch (error) {
             console.error("خطأ أثناء الحفظ:", error);
@@ -315,15 +333,17 @@
     function resetForm() {
         nameInput.value = '';
         classInput.value = '';
+        admissionStatusSelect.value = "تم القبول في الفرصة";
         editDocIdInput.value = '';
         saveBtn.textContent = 'حفظ وإضافة للسحابة';
         cancelEditBtn.style.display = 'none';
     }
 
-    window.editRecord = function(id, name, studentClass) {
+    window.editRecord = function(id, name, studentClass, admissionStatus) {
         editDocIdInput.value = id;
         nameInput.value = name;
         classInput.value = studentClass;
+        admissionStatusSelect.value = admissionStatus || "تم القبول في الفرصة";
         saveBtn.textContent = 'تحديث البيانات';
         cancelEditBtn.style.display = 'inline-block';
         window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -343,15 +363,19 @@
     // فتح وإغلاق نافذة التقرير
     openReportBtn.addEventListener('click', () => {
         reportTableBody.innerHTML = "";
-        reportSummary.textContent = `إجمالي عدد الطلاب المقبولين والمتممين للعمل: ${cachedStudents.length} طالب`;
+        reportSummary.textContent = `إجمالي عدد الطلاب المسجلين: ${cachedStudents.length} طالب`;
         
         cachedStudents.forEach((data, idx) => {
             const row = document.createElement('tr');
+            let statusClass = "status-accepted";
+            if (data.admissionStatus === "بانتظار الاعتماد") statusClass = "status-pending";
+            if (data.admissionStatus === "لم يتم القبول") statusClass = "status-rejected";
+
             row.innerHTML = `
                 <td>${idx + 1}</td>
                 <td>${data.studentName}</td>
                 <td>${data.studentClass}</td>
-                <td>${data.admissionStatus}</td>
+                <td class="${statusClass}">${data.admissionStatus}</td>
                 <td class="status-accepted">${data.workStatus}</td>
             `;
             reportTableBody.appendChild(row);
@@ -374,15 +398,20 @@
             const id = documentSnapshot.id;
             cachedStudents.push({ id, ...data });
 
+            let statusClass = "status-accepted";
+            const admission = data.admissionStatus || 'تم القبول في الفرصة';
+            if (admission === "بانتظار الاعتماد") statusClass = "status-pending";
+            if (admission === "لم يتم القبول") statusClass = "status-rejected";
+
             const row = document.createElement('tr');
             row.innerHTML = `
                 <td>${index++}</td>
                 <td>${data.studentName || ''}</td>
                 <td>${data.studentClass || ''}</td>
-                <td>${data.admissionStatus || 'تم القبول في الفرصة'}</td>
+                <td class="${statusClass}">${admission}</td>
                 <td class="status-accepted">${data.workStatus || 'أتم العمل بنجاح'}</td>
                 <td>
-                    <button class="btn-edit" onclick="editRecord('${id}', '${data.studentName || ''}', '${data.studentClass || ''}')">تعديل</button>
+                    <button class="btn-edit" onclick="editRecord('${id}', '${data.studentName || ''}', '${data.studentClass || ''}', '${admission}')">تعديل</button>
                     <button class="btn-delete" onclick="deleteRecord('${id}')">حذف</button>
                 </td>
             `;
